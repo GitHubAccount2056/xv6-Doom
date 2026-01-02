@@ -536,8 +536,8 @@ sys_mmap(void) {
 
   uint64 va = MMAP_BASE;
   for (int k = 0; k < VMA_SIZE; k++) {
-    if (p->vma[k].valid) {
-      uint64 vend = p->vma[k].addr + p->vma[k].len;
+    if (p -> vma[k].valid) {
+      uint64 vend = p -> vma[k].addr + p -> vma[k].len;
       if (vend > va) {
         va = PGROUNDUP(vend);
       }
@@ -571,6 +571,7 @@ file_write_back(int idx, uint64 addr, uint64 n) {
       continue;
     }
 
+    // RAM check: can't write more bytes than specified by n
     int len = PGSIZE;
     if (va + len > end_va) {
       len = end_va - va;
@@ -579,8 +580,10 @@ file_write_back(int idx, uint64 addr, uint64 n) {
     begin_op();
     ilock(f->ip);
     
+    // Find offset in file
     uint64 dst_offset_in_vma = va - (p->vma)[idx].addr;
     uint64 current_offset = (p->vma)[idx].offset + dst_offset_in_vma;
+    // FS check: prevents a large n from erroneously overwriting a page
     if (current_offset >= f->ip->size) {
        len = 0;
     } else if (current_offset + len > f->ip->size) {
@@ -619,17 +622,20 @@ sys_munmap(void)
 
   uvmunmap(p -> pagetable, addr, PGROUNDUP(len) / PGSIZE, 1);
   
+  // Unmap entire file
   if (addr == (p -> vma)[i].addr && len == (p -> vma)[i].len) {
     fileclose((p -> vma)[i].f);
     (p -> vma)[i].valid = 0;
   } 
   
+  // Unmap the start
   else if (addr == (p -> vma)[i].addr) {
     (p -> vma)[i].addr += len;
     (p -> vma)[i].len -= len;
     (p -> vma)[i].offset += len;
   } 
 
+  // Unmap the end
   else if(addr + len == (p -> vma)[i].addr + (p -> vma)[i].len) {
     (p -> vma)[i].len -= len;
   }

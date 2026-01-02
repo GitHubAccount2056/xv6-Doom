@@ -456,7 +456,7 @@ bmap(struct inode *ip, uint bn)
     // Allocate the indirect page that leads to the file content pages
     int index = bn / NINDIRECT;
     bp = bread(ip -> dev, addr);
-    a = (uint*) bp -> data;
+    a = (uint *) bp -> data;
     if((addr = a[index]) == 0){
       addr = balloc(ip -> dev);
       if(addr == 0) {
@@ -496,27 +496,27 @@ itrunc(struct inode *ip)
   uint *a, *b;
 
   for(i = 0; i < NDIRECT; i++){
-    if(ip->addrs[i]){
-      bfree(ip->dev, ip->addrs[i]);
-      ip->addrs[i] = 0;
+    if(ip -> addrs[i]){
+      bfree(ip -> dev, ip -> addrs[i]);
+      ip -> addrs[i] = 0;
     }
   }
 
-  if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
-    a = (uint*)bp->data;
+  if(ip -> addrs[NDIRECT]){
+    bp = bread(ip -> dev, ip -> addrs[NDIRECT]);
+    a = (uint *) bp -> data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
-        bfree(ip->dev, a[j]);
+        bfree(ip -> dev, a[j]);
     }
     brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
-    ip->addrs[NDIRECT] = 0;
+    bfree(ip -> dev, ip -> addrs[NDIRECT]);
+    ip -> addrs[NDIRECT] = 0;
   }
 
-  if(ip->addrs[NDIRECT + 1]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
-    a = (uint*) bp->data;
+  if(ip -> addrs[NDIRECT + 1]){
+    bp = bread(ip -> dev, ip -> addrs[NDIRECT + 1]);
+    a = (uint *) bp -> data;
 
     for(j = 0; j < NINDIRECT; j++){
       if(a[j]){
@@ -525,12 +525,12 @@ itrunc(struct inode *ip)
 
         for(int k = 0; k < NINDIRECT; k++){
           if(b[k]) {
-            bfree(ip->dev, b[k]);
+            bfree(ip -> dev, b[k]);
           }
         }
         
         brelse(cp);
-        bfree(ip->dev, a[j]);
+        bfree(ip -> dev, a[j]);
       }
     }
     

@@ -148,8 +148,8 @@ UPROGS=\
 	$U/_mmaptest\
 	$U/_bigfile
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+fs.img: mkfs/mkfs README doom1.wad $(UPROGS)
+	mkfs/mkfs fs.img README doom1.wad $(UPROGS)
 
 -include kernel/*.d user/*.d
 

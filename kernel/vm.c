@@ -462,18 +462,13 @@ vmfault(pagetable_t pagetable, uint64 va, int read)
 
   if (va >= MMAP_BASE) {
     int i;
-    struct VMA *v = 0;
-    
     for (i = 0; i < VMA_SIZE; ++i) {
-      if (p->vma[i].valid) {
-        if (va >= p->vma[i].addr && va < p->vma[i].addr + p->vma[i].len) {
-          v = &(p->vma[i]);
+      if (p -> vma[i].valid && (va >= p -> vma[i].addr && va < p -> vma[i].addr + p -> vma[i].len)) {
           break;
-        }
       }
     }
 
-    if (v == 0) {
+    if (i == VMA_SIZE) {
       return 0; 
     }
 
@@ -488,12 +483,12 @@ vmfault(pagetable_t pagetable, uint64 va, int read)
   }
 
  
-  if (va < p->sz) {
+  if (va < p -> sz) {
     mem = (uint64) kalloc();
     if(mem == 0) return 0;
     memset((void *) mem, 0, PGSIZE);
     
-    if(mappages(p->pagetable, va, PGSIZE, mem, PTE_W|PTE_U|PTE_R) != 0){
+    if (mappages(p->pagetable, va, PGSIZE, mem, PTE_W|PTE_U|PTE_R) != 0){
       kfree((void *)mem);
       return 0;
     }
