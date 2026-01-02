@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -292,6 +293,18 @@ kfork(void)
 
   pid = np->pid;
 
+  for (int i = 0; i < VMA_SIZE; ++i) {
+    if ((p -> vma)[i].valid) {
+      (np -> vma)[i].addr = (p -> vma)[i].addr;
+      (np -> vma)[i].flags = (p -> vma)[i].flags;
+      (np -> vma)[i].perms = (p -> vma)[i].perms;
+      (np -> vma)[i].len = (p -> vma)[i].len;
+      (np -> vma)[i].offset = (p -> vma)[i].offset;
+      (np -> vma)[i].f = filedup((p -> vma)[i].f);
+      (np -> vma)[i].valid = 1;
+    }
+  }
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -337,6 +350,20 @@ kexit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  for(int i = 0; i < VMA_SIZE; i++){
+    if(p->vma[i].valid){
+      if(p->vma[i].flags & MAP_SHARED){
+        file_write_back(i, p->vma[i].addr, p->vma[i].len);
+      }
+
+      uvmunmap(p->pagetable, p->vma[i].addr, PGROUNDUP(p->vma[i].len)/PGSIZE, 1);
+
+      fileclose(p->vma[i].f);
+      
+      p->vma[i].valid = 0;
     }
   }
 

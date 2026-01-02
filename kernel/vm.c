@@ -454,22 +454,53 @@ vmfault(pagetable_t pagetable, uint64 va, int read)
 {
   uint64 mem;
   struct proc *p = myproc();
+  if(va >= MAXVA) return 0;
 
-  if (va >= p->sz)
-    return 0;
   va = PGROUNDDOWN(va);
-  if(ismapped(pagetable, va)) {
-    return 0;
+
+  if(ismapped(pagetable, va)) return 0;
+
+  if (va >= MMAP_BASE) {
+    int i;
+    struct VMA *v = 0;
+    
+    for (i = 0; i < VMA_SIZE; ++i) {
+      if (p->vma[i].valid) {
+        if (va >= p->vma[i].addr && va < p->vma[i].addr + p->vma[i].len) {
+          v = &(p->vma[i]);
+          break;
+        }
+      }
+    }
+
+    if (v == 0) {
+      return 0; 
+    }
+
+    mem = (uint64) kalloc();
+    if(mem == 0) return 0;
+    memset((void *) mem, 0, PGSIZE);
+
+    if (process_file(mem, i, va)) {
+      return 0; 
+    }
+    return mem;
   }
-  mem = (uint64) kalloc();
-  if(mem == 0)
-    return 0;
-  memset((void *) mem, 0, PGSIZE);
-  if (mappages(p->pagetable, va, PGSIZE, mem, PTE_W|PTE_U|PTE_R) != 0) {
-    kfree((void *)mem);
-    return 0;
+
+ 
+  if (va < p->sz) {
+    mem = (uint64) kalloc();
+    if(mem == 0) return 0;
+    memset((void *) mem, 0, PGSIZE);
+    
+    if(mappages(p->pagetable, va, PGSIZE, mem, PTE_W|PTE_U|PTE_R) != 0){
+      kfree((void *)mem);
+      return 0;
+    }
+    return mem;
   }
-  return mem;
+
+  return 0;
 }
 
 int

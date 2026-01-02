@@ -20,6 +20,7 @@
 #include "fs.h"
 #include "buf.h"
 #include "file.h"
+#include "fcntl.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 // there should be one superblock per disk device, but we run with
@@ -717,4 +718,29 @@ struct inode*
 nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
+}
+
+int
+process_file(uint64 mem, int i, uint64 va) {
+  int perm = PTE_U;
+  struct proc *p = myproc();
+  struct file *f = (p -> vma)[i].f;
+  uint64 offset = (p -> vma)[i].offset + (va - (p -> vma)[i].addr);
+  ilock(f -> ip);
+  readi(f -> ip, 0, mem, offset, PGSIZE);
+  iunlock(f -> ip);
+  if ((p -> vma)[i].perms & PROT_READ) {
+    perm |= PTE_R;
+  }
+  if ((p -> vma)[i].perms & PROT_WRITE) {
+    perm |= PTE_W;
+  }
+  if ((p -> vma)[i].perms & PROT_EXEC) {
+    perm |= PTE_X;
+  }
+  if (mappages(p->pagetable, va, PGSIZE, mem, perm) != 0) {
+    kfree((void *) mem);
+    return 1;
+  }
+  return 0;
 }

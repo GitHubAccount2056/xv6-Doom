@@ -60,3 +60,4 @@ struct dirent {
   char name[DIRSIZ] __attribute__((nonstring));
 };
 
+int process_file(uint64 mem, int i, uint64 va);

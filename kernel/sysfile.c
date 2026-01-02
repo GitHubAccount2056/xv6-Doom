@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -501,5 +502,137 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_mmap(void) {
+  uint64 len, addr;
+  int prot, flags, fd, offset;
+  struct file *f;
+  struct proc *p = myproc();
+
+  argaddr(0, &addr); // Zero anyways
+  argaddr(1, &len);
+  argint(2, &prot);
+  argint(3, &flags);
+  argfd(4, &fd, &f);
+  argint(5, &offset);
+
+  if((flags & MAP_SHARED) && (prot & PROT_WRITE) && !f -> writable) {
+    return FAIL;
+  }
+  
+  int i;
+  for (i = 0; i < VMA_SIZE; ++i) {
+    if (!(p -> vma)[i].valid) {
+      break;
+    }
+  }
+  // Full
+  if (i == VMA_SIZE) {
+    return FAIL;
+  }
+
+  uint64 va = MMAP_BASE;
+  for (int k = 0; k < VMA_SIZE; k++) {
+    if (p->vma[k].valid) {
+      uint64 vend = p->vma[k].addr + p->vma[k].len;
+      if (vend > va) {
+        va = PGROUNDUP(vend);
+      }
+    }
+  }
+
+  (p -> vma)[i].addr = va;
+  (p -> vma)[i].len = len;
+  (p -> vma)[i].perms = prot;
+  (p -> vma)[i].flags = flags;
+  (p -> vma)[i].valid = 1;
+  (p -> vma)[i].f = filedup(f);
+  (p -> vma)[i].offset = offset;
+  return va;
+}
+
+void 
+file_write_back(int idx, uint64 addr, uint64 n) {
+  struct proc *p = myproc();
+  struct file *f = (p -> vma)[idx].f;
+
+  if(f -> writable == 0)
+    return;
+  
+  uint64 start_va = addr;
+  uint64 end_va = addr + n;
+
+  for (uint64 va = start_va; va < end_va; va += PGSIZE) {
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0) {
+      continue;
+    }
+
+    int len = PGSIZE;
+    if (va + len > end_va) {
+      len = end_va - va;
+    }
+
+    begin_op();
+    ilock(f->ip);
+    
+    uint64 dst_offset_in_vma = va - (p->vma)[idx].addr;
+    uint64 current_offset = (p->vma)[idx].offset + dst_offset_in_vma;
+    if (current_offset >= f->ip->size) {
+       len = 0;
+    } else if (current_offset + len > f->ip->size) {
+       len = f->ip->size - current_offset;
+    }
+    if (len > 0) {
+      writei(f->ip, 1, va, current_offset, len);
+    }
+    
+    iunlock(f->ip);
+    end_op();
+  }
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr, len;
+  argaddr(0, &addr);
+  argaddr(1, &len);
+
+  struct proc *p = myproc();
+  
+  int i;
+  for (i = 0; i < VMA_SIZE; i++){
+    if((p -> vma[i]).valid && addr >= (p -> vma)[i].addr && (addr + len) <= ((p -> vma)[i].addr + (p -> vma)[i].len)){
+      break;
+    }
+  }
+  if(i == VMA_SIZE) {
+    return FAIL;
+  }
+  if ((p -> vma)[i].flags & MAP_SHARED) {
+    file_write_back(i, addr, len); 
+  }
+
+  uvmunmap(p -> pagetable, addr, PGROUNDUP(len) / PGSIZE, 1);
+  
+  if (addr == (p -> vma)[i].addr && len == (p -> vma)[i].len) {
+    fileclose((p -> vma)[i].f);
+    (p -> vma)[i].valid = 0;
+  } 
+  
+  else if (addr == (p -> vma)[i].addr) {
+    (p -> vma)[i].addr += len;
+    (p -> vma)[i].len -= len;
+    (p -> vma)[i].offset += len;
+  } 
+
+  else if(addr + len == (p -> vma)[i].addr + (p -> vma)[i].len) {
+    (p -> vma)[i].len -= len;
+  }
+
   return 0;
 }

@@ -1,4 +1,6 @@
 #define SBRK_ERROR ((char *)-1)
+typedef unsigned long size_t;
+typedef long int off_t;
 
 struct stat;
 
@@ -24,6 +26,8 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
+int munmap(void *addr, size_t len);
 
 // ulib.c
 int stat(const char*, struct stat*);
