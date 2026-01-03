@@ -5,6 +5,15 @@
 #include "kernel/vm.h"
 #include "user/user.h"
 
+// Initialise stdin, stdout, stderr
+static FILE _stdin_storage = {0};
+static FILE _stdout_storage = {1};
+static FILE _stderr_storage = {2};
+
+FILE *stdin = &_stdin_storage;
+FILE *stdout = &_stdout_storage;
+FILE *stderr = &_stderr_storage;
+
 //
 // wrapper so that it's OK if main() does not call exit().
 //
@@ -159,3 +168,98 @@ sbrklazy(int n) {
   return sys_sbrk(n, SBRK_LAZY);
 }
 
+FILE *
+fopen(const char *fname, const char *mode) {
+  int fd = open(fname, O_RDONLY);
+  if (fd < 0) {
+    return 0;
+  }
+  FILE *f = malloc(sizeof(FILE));
+  f -> fd = fd;
+  return f;
+}
+
+int
+fclose(FILE *f) {
+  if (!f) {
+    return -1;
+  }
+  close(f -> fd);
+  free(f);
+  return 0;
+}
+
+int
+fseek(FILE *f, long off, int origin) {
+  return lseek(f -> fd, off, origin);
+}
+
+long
+ftell(FILE *f) {
+  return lseek(f -> fd, 0, SEEK_CUR);
+}
+
+size_t
+fread(void *dest, size_t size, size_t count, FILE *src) {
+  int total_read = size * count;
+  int result = read(src -> fd, dest, total_read);
+  if (result < 0) {
+    return -1;
+  }
+  return result / size;
+}
+
+int
+strcasecmp(const char *s1, const char *s2) {
+  while (*s1 && *s2) {
+    char c1 = (*s1 >= 'A' && *s1 <= 'Z') ? *s1 + ('a' - 'A') : *s1;
+    char c2 = (*s2 >= 'A' && *s2 <= 'Z') ? *s2 + ('a' - 'A') : *s2;
+    if (c1 != c2) {
+      return c1 - c2;
+    }
+    s1++; s2++;
+  }
+  return *s2 - *s1;
+}
+
+int
+strncasecmp(const char *s1, const char *s2, int n) {
+  while (n > 0) {
+    char c1 = (*s1 >= 'A' && *s1 <= 'Z') ? *s1 + ('a' - 'A') : *s1;
+    char c2 = (*s2 >= 'A' && *s2 <= 'Z') ? *s2 + ('a' - 'A') : *s2;
+    if (c1 != c2) {
+      return c1 - c2;
+    }
+    if (c1 == '\0') {
+      return 0;
+    }
+    s1++;
+    s2++;
+    n--;
+  }
+  return 0;
+}
+
+int
+strncmp(const char *p, const char *q, uint n)
+{
+  while(n > 0 && *p && *p == *q){
+    n--;
+    p++;
+    q++;
+  }
+  if(n == 0) {
+    return 0;
+  }
+  return (uchar)*p - (uchar)*q;
+}
+
+uint32
+DG_GetTicksMs() {
+  return uptime() * 10; // 1 tick == 10 ms
+}
+
+void
+DG_SleepMs(uint32 ms) {
+  pause(ms / 10);
+}

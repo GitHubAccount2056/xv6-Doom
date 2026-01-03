@@ -88,3 +88,12 @@ malloc(uint nbytes)
         return 0;
   }
 }
+
+void *
+calloc(uint n, uint size)
+{
+  uint total = n * size;
+  void *p = malloc(total);
+  if(p) memset(p, 0, total);
+  return p;
+}

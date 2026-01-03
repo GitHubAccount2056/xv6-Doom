@@ -4,8 +4,15 @@
 #define SEEK_END 2
 typedef unsigned long size_t;
 typedef long int off_t;
-
 struct stat;
+
+typedef struct {
+  int fd;
+} FILE;
+
+extern FILE *stdin;
+extern FILE *stdout;
+extern FILE *stderr;
 
 // system calls
 int fork(void);
@@ -47,6 +54,15 @@ int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
 char* sbrk(int);
 char* sbrklazy(int);
+void DG_SleepMs(uint32 ms);
+uint32 DG_GetTicksMs();
+int strncmp(const char *p, const char *q, uint n);
+int strncasecmp(const char *s1, const char *s2, int n);
+size_t fread(void *dest, size_t size, size_t count, FILE *src);
+long ftell(FILE *f);
+int fseek(FILE *f, long off, int origin);
+int fclose(FILE *f);
+FILE * fopen(const char *fname, const char *mode);
 
 // printf.c
 void fprintf(int, const char*, ...) __attribute__ ((format (printf, 2, 3)));
@@ -55,3 +71,4 @@ void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+void* calloc(uint n, uint size);
