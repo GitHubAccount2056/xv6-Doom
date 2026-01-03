@@ -1,4 +1,7 @@
 #define SBRK_ERROR ((char *)-1)
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 typedef unsigned long size_t;
 typedef long int off_t;
 
@@ -28,6 +31,7 @@ int pause(int);
 int uptime(void);
 void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t len);
+int lseek(int fd, int offset, int whence);
 
 // ulib.c
 int stat(const char*, struct stat*);

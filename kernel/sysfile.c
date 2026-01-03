@@ -642,3 +642,35 @@ sys_munmap(void)
 
   return 0;
 }
+
+uint64
+sys_lseek(void) {
+  int fd, whence, offset;
+  struct file *f;
+  if (argfd(0, &fd, &f) < 0) {
+    return -1;
+  }
+  argint(1, &offset);
+  argint(2, &whence);
+  uint64 new_offset = f -> off;
+  switch (whence) {
+    case SEEK_SET:
+      new_offset = offset;
+      break;
+    case SEEK_CUR:
+      new_offset += offset;
+      break;
+    case SEEK_END:
+      ilock(f -> ip);
+      new_offset = f -> ip -> size + offset;
+      iunlock(f -> ip);
+      break;
+    default:
+      return -1;
+  }
+  if ((int) new_offset < 0) {
+    return -1;
+  }
+  f -> off = new_offset;
+  return new_offset;
+}

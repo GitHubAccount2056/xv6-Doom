@@ -9,3 +9,6 @@
 #define PROT_EXEC       0x4
 #define MAP_SHARED      0x01
 #define MAP_PRIVATE     0x02
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
