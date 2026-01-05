@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
+#include "fcntl.h"
 
 /*
  * the kernel's page table.
@@ -471,6 +472,15 @@ vmfault(pagetable_t pagetable, uint64 va, int read)
     if (i == VMA_SIZE) {
       return 0; 
     }
+
+    if(p -> vma[i].flags & MAP_DEVICE){
+      uint64 offset = PGROUNDDOWN(va - p -> vma[i].addr);
+      uint64 pa = p -> vma[i].phys_addr + offset;
+      
+      if(mappages(pagetable, PGROUNDDOWN(va), PGSIZE, pa, PTE_W|PTE_R|PTE_U) < 0)
+        return 0;
+    return 1; // Success
+  }
 
     mem = (uint64) kalloc();
     if(mem == 0) return 0;

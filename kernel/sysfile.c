@@ -507,8 +507,8 @@ sys_pipe(void)
 
 uint64
 sys_mmap(void) {
-  uint64 len, addr;
-  int prot, flags, fd, offset;
+  uint64 len, addr, offset;
+  int prot, flags, fd;
   struct file *f;
   struct proc *p = myproc();
 
@@ -516,11 +516,23 @@ sys_mmap(void) {
   argaddr(1, &len);
   argint(2, &prot);
   argint(3, &flags);
-  argfd(4, &fd, &f);
-  argint(5, &offset);
+  argaddr(5, &offset);
 
-  if((flags & MAP_SHARED) && (prot & PROT_WRITE) && !f -> writable) {
+  if (argfd(4, &fd, &f) < 0) {
+    return -1;
+  }
+
+  if ((flags & MAP_SHARED) && (prot & PROT_WRITE) && !f -> writable) {
     return FAIL;
+  }
+
+  if (!(flags & MAP_DEVICE)) {
+    if (f -> type != FD_INODE) {
+      return -1;
+    }
+    filedup(f);
+  } else {
+    f = 0; 
   }
   
   int i;
@@ -551,6 +563,10 @@ sys_mmap(void) {
   (p -> vma)[i].valid = 1;
   (p -> vma)[i].f = filedup(f);
   (p -> vma)[i].offset = offset;
+
+  if(flags & MAP_DEVICE) {
+    (p -> vma)[i].phys_addr = offset;
+  }
   return va;
 }
 

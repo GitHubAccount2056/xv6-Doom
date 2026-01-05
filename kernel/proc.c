@@ -354,16 +354,21 @@ kexit(int status)
   }
 
   for(int i = 0; i < VMA_SIZE; i++){
-    if(p->vma[i].valid){
-      if(p->vma[i].flags & MAP_SHARED){
-        file_write_back(i, p->vma[i].addr, p->vma[i].len);
+    if(p -> vma[i].valid){
+      if(p -> vma[i].flags & MAP_SHARED){
+        file_write_back(i, p -> vma[i].addr, p -> vma[i].len);
       }
 
-      uvmunmap(p->pagetable, p->vma[i].addr, PGROUNDUP(p->vma[i].len)/PGSIZE, 1);
+      int do_free = 1;
+      if(p -> vma[i].flags & MAP_DEVICE) {
+        do_free = 0;
+      }
+      // Don't free device memory
+      uvmunmap(p -> pagetable, p -> vma[i].addr, PGROUNDUP(p -> vma[i].len) / PGSIZE, do_free);
 
-      fileclose(p->vma[i].f);
+      fileclose(p -> vma[i].f);
       
-      p->vma[i].valid = 0;
+      p -> vma[i].valid = 0;
     }
   }
 

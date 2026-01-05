@@ -92,6 +92,7 @@ struct VMA {
     int valid;
     struct file *f;
     uint offset;
+    uint64 phys_addr;
 };
 
 // Per-process state
