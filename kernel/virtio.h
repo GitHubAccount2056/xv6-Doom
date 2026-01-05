@@ -94,3 +94,96 @@ struct virtio_blk_req {
   uint32 reserved;
   uint64 sector;
 };
+
+// From the virtio spec and https://blog.stephenmarz.com/2020/11/11/risc-v-os-using-rust-graphics/#overview
+// Command Codes (Input)
+#define VIRTIO_GPU_CMD_GET_DISPLAY_INFO    0x0100
+#define VIRTIO_GPU_CMD_RESOURCE_CREATE_2D  0x0101
+#define VIRTIO_GPU_CMD_RESOURCE_UNREF      0x0102
+#define VIRTIO_GPU_CMD_SET_SCANOUT         0x0103
+#define VIRTIO_GPU_CMD_RESOURCE_FLUSH      0x0104
+#define VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D 0x0105
+#define VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING 0x0106
+
+// Response Codes (Output)
+#define VIRTIO_GPU_RESP_OK_NODATA          0x1100
+#define VIRTIO_GPU_RESP_OK_DISPLAY_INFO    0x1101
+#define VIRTIO_GPU_RESP_OK_CAPSET_INFO     0x1102
+#define VIRTIO_GPU_RESP_OK_CAPSET          0x1103
+
+#define VIRTQ_DESC_F_NEXT  1 // Next field contains linked descriptor index
+#define VIRTQ_DESC_F_WRITE 2 // Device writes (we read)
+
+struct virtio_gpu_ctrl_hdr {
+  uint32 type;
+  uint32 flags;
+  uint64 fence_id;
+  uint32 ctx_id;
+  uint32 padding;
+};
+
+// Basic Rectangle definition
+struct virtio_gpu_rect {
+  uint32 x;
+  uint32 y;
+  uint32 width;
+  uint32 height;
+};
+
+// 1. Get Display Info (The Response)
+#define VIRTIO_GPU_MAX_SCANOUTS 16
+struct virtio_gpu_resp_display_info {
+  struct virtio_gpu_ctrl_hdr hdr;
+  struct virtio_gpu_display_one {
+    struct virtio_gpu_rect r;
+    uint32 enabled;
+    uint32 flags;
+  } pmodes[VIRTIO_GPU_MAX_SCANOUTS];
+};
+
+// 2. Resource Create 2D (Create the buffer handle on GPU side)
+struct virtio_gpu_resource_create_2d {
+  struct virtio_gpu_ctrl_hdr hdr;
+  uint32 resource_id;
+  uint32 format;
+  uint32 width;
+  uint32 height;
+};
+
+// 3. Attach Backing (Link GPU handle to Physical RAM)
+struct virtio_gpu_mem_entry {
+  uint64 addr;
+  uint32 length;
+  uint32 padding;
+};
+
+struct virtio_gpu_resource_attach_backing {
+  struct virtio_gpu_ctrl_hdr hdr;
+  uint32 resource_id;
+  uint32 nr_entries;
+  struct virtio_gpu_mem_entry entries[64]; // 320 * 200 * 4 / 4096 = 63 pages
+};
+
+// 4. Set Scanout (Link GPU handle to the Monitor/Display)
+struct virtio_gpu_set_scanout {
+  struct virtio_gpu_ctrl_hdr hdr;
+  struct virtio_gpu_rect r;
+  uint32 scanout_id;
+  uint32 resource_id;
+};
+
+// 5. Transfer / Flush (Update the screen)
+struct virtio_gpu_transfer_to_host_2d {
+  struct virtio_gpu_ctrl_hdr hdr;
+  struct virtio_gpu_rect r;
+  uint64 offset;
+  uint32 resource_id;
+  uint32 padding;
+};
+
+struct virtio_gpu_resource_flush {
+  struct virtio_gpu_ctrl_hdr hdr;
+  struct virtio_gpu_rect r;
+  uint32 resource_id;
+  uint32 padding;
+};

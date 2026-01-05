@@ -23,3 +23,5 @@
 #define SYS_mmap   22
 #define SYS_munmap 23
 #define SYS_lseek  24
+#define SYS_getfb  25
+#define SYS_flushfb 26

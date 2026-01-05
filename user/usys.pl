@@ -45,3 +45,5 @@ entry("uptime");
 entry("mmap");
 entry("munmap");
 entry("lseek");
+entry("getfb");
+entry("flushfb");

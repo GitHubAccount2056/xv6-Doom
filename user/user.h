@@ -39,6 +39,8 @@ int uptime(void);
 void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
 int munmap(void *addr, size_t len);
 int lseek(int fd, int offset, int whence);
+uint64 getfb(void);
+void flushfb(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

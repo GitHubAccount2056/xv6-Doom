@@ -107,3 +107,17 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_getfb(void)
+{
+  return virtio_gpu_get_framebuffer_addr();
+}
+
+uint64
+sys_flushfb(void)
+{
+  virtio_gpu_flush();
+  return 0;
+}
