@@ -14,6 +14,39 @@ extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
+// Replacement for stdint.h
+typedef unsigned char  uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int   uint32_t;
+typedef unsigned long  uint64_t;
+typedef char           int8_t;
+typedef short          int16_t;
+typedef int            int32_t;
+typedef long           int64_t;
+typedef uint8_t        byte;
+typedef enum { false, true } boolean;
+
+// Replacement for limits.h
+#ifndef INT_MAX
+#define INT_MAX       2147483647
+#endif
+
+#ifndef INT_MIN
+#define INT_MIN       (-INT_MAX - 1)
+#endif
+
+#ifndef SHRT_MAX
+#define SHRT_MAX      32767
+#endif
+
+#ifndef SHRT_MIN
+#define SHRT_MIN      (-SHRT_MAX - 1)
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX      128
+#endif
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
