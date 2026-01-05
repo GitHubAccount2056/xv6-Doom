@@ -9,12 +9,19 @@
 #include "buf.h"
 #include "virtio.h"
 
+// Helps find the GPU base
+#define R_SCAN(reg) (*(volatile uint32 *)(base + (reg)))
+#define R(reg) (*(volatile uint32 *) (gpu_base + (reg)))
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 200
+#define SCREEN_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT * 4)
+
 void virtio_gpu_start(void);
 void virtio_gpu_send(void *cmd, uint32 cmd_len, void *resp, uint32 resp_len);
 
 // Global framebuffer for contiguous physical memory for mmap
-__attribute__((aligned(PGSIZE))) 
-uchar gpu_buffer[320 * 200 * 4];
+__attribute__((aligned(PGSIZE)))
+uchar gpu_buffer[SCREEN_SIZE];
 
 // The base address of the GPU device
 void *gpu_base = 0;
@@ -32,76 +39,75 @@ struct {
 // Find the VirtIO GPU on the MMIO bus
 void
 virtio_gpu_init(void)
-{
-  uint32 *pad;
-  
+{ 
   initlock(&gpuq.lock, "virtio_gpu");
 
-  // QEMU maps VirtIO devices at 0x10001000, 0x10002000, ...
+  // 1. Discovery (Accept Version 2)
   for(void *base = (void *) VIRTIO0; base < (void *) (VIRTIO0 + 8 * 0x1000); base += 0x1000){
-    pad = (uint32 *)base;
-    if(pad[VIRTIO_MMIO_MAGIC_VALUE] != 0x74726976 || pad[VIRTIO_MMIO_VERSION] != 1){
-      continue;
-    }
-    if(pad[VIRTIO_MMIO_DEVICE_ID] == 16){
+    
+    if(R_SCAN(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976) continue;
+    
+    // We explicitly look for Version 2 (Modern)
+    if(R_SCAN(VIRTIO_MMIO_VERSION) != 2) continue; 
+    
+    if(R_SCAN(VIRTIO_MMIO_DEVICE_ID) == 16){
       gpu_base = base;
+      printf("virtio_gpu: found at %p\n", base);
       break;
     }
   }
 
-  if(!gpu_base) {
+  if (!gpu_base) {
     printf("virtio_gpu: not found!\n");
     return;
   }
 
-  #define R(reg) (*(volatile uint32 *) (gpu_base + (reg)))
-
-  // negotiate features
+  // 2. Reset & Negotiate
   R(VIRTIO_MMIO_STATUS) = 0;
   R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_ACKNOWLEDGE;
   R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_DRIVER;
   R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_FEATURES_OK;
-  R(VIRTIO_MMIO_QUEUE_SEL) = 0;
   
+  // 3. Select Queue 0
+  R(VIRTIO_MMIO_QUEUE_SEL) = 0;
   if(R(VIRTIO_MMIO_QUEUE_READY))
     panic("virtio_gpu: queue 0 ready");
 
+  uint32 max = R(VIRTIO_MMIO_QUEUE_NUM_MAX);
+  if(max == 0) panic("virtio_gpu: queue 0 has no capacity");
+  if(max < NUM) panic("virtio_gpu: queue 0 max too small");
+  
   R(VIRTIO_MMIO_QUEUE_NUM) = NUM;
 
-  // allocate and zero queue memory.
+  // 4. MODERN ALLOCATION (Separate Pages)
+  memset(&gpuq, 0, sizeof(gpuq));
   gpuq.desc = kalloc();
   gpuq.avail = kalloc();
   gpuq.used = kalloc();
-  if(!gpuq.desc || !gpuq.avail || !gpuq.used)
+  if (!gpuq.desc || !gpuq.avail || !gpuq.used)
     panic("virtio gpu kalloc");
 
   memset(gpuq.desc, 0, PGSIZE);
   memset(gpuq.avail, 0, PGSIZE);
   memset(gpuq.used, 0, PGSIZE);
 
-  // write physical addresses.
-  R(VIRTIO_MMIO_QUEUE_DESC_LOW) = (uint64)gpuq.desc;
-  R(VIRTIO_MMIO_QUEUE_DESC_HIGH) = (uint64)gpuq.desc >> 32;
-  R(VIRTIO_MMIO_DRIVER_DESC_LOW) = (uint64)gpuq.avail;
+  // 5. MODERN REGISTRATION (Write 64-bit Addresses)
+  R(VIRTIO_MMIO_QUEUE_DESC_LOW)   = (uint64)gpuq.desc;
+  R(VIRTIO_MMIO_QUEUE_DESC_HIGH)  = (uint64)gpuq.desc >> 32;
+  R(VIRTIO_MMIO_DRIVER_DESC_LOW)  = (uint64)gpuq.avail;
   R(VIRTIO_MMIO_DRIVER_DESC_HIGH) = (uint64)gpuq.avail >> 32;
-  R(VIRTIO_MMIO_DEVICE_DESC_LOW) = (uint64)gpuq.used;
+  R(VIRTIO_MMIO_DEVICE_DESC_LOW)  = (uint64)gpuq.used;
   R(VIRTIO_MMIO_DEVICE_DESC_HIGH) = (uint64)gpuq.used >> 32;
 
-  // queue is ready.
+  // 6. Finish
   R(VIRTIO_MMIO_QUEUE_READY) = 0x1;
 
-  // all NUM descriptors start out unused.
   for(int i = 0; i < NUM; i++)
     gpuq.free[i] = 1;
 
   R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_DRIVER_OK;
-
   virtio_gpu_start();
 }
-
-#define SCREEN_WIDTH  320
-#define SCREEN_HEIGHT 200
-#define SCREEN_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT * 4)
 
 uint64 gpu_framebuffer_pa = 0;
 
@@ -155,13 +161,12 @@ virtio_gpu_send(void *cmd, uint32 cmd_len, void *resp, uint32 resp_len)
     // Poll for completion
     static uint16 last_used_idx = 0;
     while(used->idx == last_used_idx) {
+      last_used_idx++;
     }
-    last_used_idx++;
 
     // Free Descriptors
     gpuq.free[idx[0]] = 1;
     gpuq.free[idx[1]] = 1;
-
     release(&gpuq.lock);
 }
 
