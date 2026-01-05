@@ -29,8 +29,8 @@ kvmmake(void)
   // uart registers
   kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
-  // virtio mmio disk interface
-  kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  // virtio mmio disk interface; 8 * PGSIZE to allow scanning for Virtio GPU on init
+  kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE * 8, PTE_R | PTE_W);
 
   // PLIC
   kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
