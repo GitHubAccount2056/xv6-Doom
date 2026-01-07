@@ -125,6 +125,9 @@ sys_getfb(void)
     return -1;
   }
 
+  p -> fb_addr = va;
+  p -> fb_len = 640 * 400 * 4;
+
   return va;
 }
 

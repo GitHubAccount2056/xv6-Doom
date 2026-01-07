@@ -119,4 +119,6 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   struct VMA vma[VMA_SIZE];    // VMA
+  uint64 fb_addr;              // VA of framebuffer
+  uint64 fb_len;               // Size of framebuffer (bytes)
 };

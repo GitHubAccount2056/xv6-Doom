@@ -344,6 +344,13 @@ kexit(int status)
   if(p == initproc)
     panic("init exiting");
 
+  if (p -> fb_addr != 0 && p -> fb_len != 0) {
+    uint64 num_pages = PGROUNDUP(p -> fb_len) / PGSIZE;
+    uvmunmap(p -> pagetable, p -> fb_addr, num_pages, 0);
+    p -> fb_addr = 0;
+    p -> fb_len = 0;
+  }
+
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){
