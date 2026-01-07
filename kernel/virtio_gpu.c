@@ -4,130 +4,63 @@
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
-#include "sleeplock.h"
-#include "fs.h"
-#include "buf.h"
+#include "proc.h"
 #include "virtio.h"
 
-// Helps find the GPU base
-#define R_SCAN(reg) (*(volatile uint32 *)(base + (reg)))
-#define R(reg) (*(volatile uint32 *) (gpu_base + (reg)))
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 200
-#define SCREEN_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT * 4)
+// Adapted from https://github.com/rafaelRiv/osblog/blob/master/risc_v/src/gpu.rs
 
-void virtio_gpu_start(void);
-void virtio_gpu_send(void *cmd, uint32 cmd_len, void *resp, uint32 resp_len);
-
-// Global framebuffer for contiguous physical memory for mmap
-__attribute__((aligned(PGSIZE)))
-uchar gpu_buffer[SCREEN_SIZE];
-
-// The base address of the GPU device
-void *gpu_base = 0;
-
-// Copied the virtio_disk.c struct
+// Global Driver State
 struct {
-  struct virtq_desc *desc;
-  struct virtq_avail *avail;
-  struct virtq_used *used;
-  int free[NUM];
-  uint16 used_idx;
-  struct spinlock lock;
-} gpuq;
-
-// Find the VirtIO GPU on the MMIO bus
-void
-virtio_gpu_init(void)
-{ 
-  initlock(&gpuq.lock, "virtio_gpu");
-
-  // 1. Discovery (Accept Version 2)
-  for(void *base = (void *) VIRTIO0; base < (void *) (VIRTIO0 + 8 * 0x1000); base += 0x1000){
+    uint64 base_addr;
+    struct spinlock lock;
+    struct virtq_desc *desc;
+    struct virtq_avail *avail;
+    struct virtq_used *used;
+    int free[NUM];
+    uint16 used_idx; 
     
-    if(R_SCAN(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976) continue;
-    
-    // We explicitly look for Version 2 (Modern)
-    if(R_SCAN(VIRTIO_MMIO_VERSION) != 2) continue; 
-    
-    if(R_SCAN(VIRTIO_MMIO_DEVICE_ID) == 16){
-      gpu_base = base;
-      printf("virtio_gpu: found at %p\n", base);
-      break;
-    }
-  }
+} gpu;
 
-  if (!gpu_base) {
-    printf("virtio_gpu: not found!\n");
-    return;
-  }
+// Queue Memory
+__attribute__((aligned(4096)))
+char gpu_queue_page[4096 * 2];
 
-  // 2. Reset & Negotiate
-  R(VIRTIO_MMIO_STATUS) = 0;
-  R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_ACKNOWLEDGE;
-  R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_DRIVER;
-  R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_FEATURES_OK;
-  
-  // 3. Select Queue 0
-  R(VIRTIO_MMIO_QUEUE_SEL) = 0;
-  if(R(VIRTIO_MMIO_QUEUE_READY))
-    panic("virtio_gpu: queue 0 ready");
+// Framebuffer
+__attribute__((aligned(4096)))
+uchar gpu_buffer[640 * 400 * 4]; 
 
-  uint32 max = R(VIRTIO_MMIO_QUEUE_NUM_MAX);
-  if(max == 0) panic("virtio_gpu: queue 0 has no capacity");
-  if(max < NUM) panic("virtio_gpu: queue 0 max too small");
-  
-  R(VIRTIO_MMIO_QUEUE_NUM) = NUM;
 
-  // 4. MODERN ALLOCATION (Separate Pages)
-  memset(&gpuq, 0, sizeof(gpuq));
-  gpuq.desc = kalloc();
-  gpuq.avail = kalloc();
-  gpuq.used = kalloc();
-  if (!gpuq.desc || !gpuq.avail || !gpuq.used)
-    panic("virtio gpu kalloc");
+// Command buffer
+struct virtio_gpu_resource_create_2d    cmd_create;
+struct virtio_gpu_resource_attach_backing cmd_attach;
+struct virtio_gpu_set_scanout           cmd_scanout;
+struct virtio_gpu_transfer_to_host_2d   cmd_transfer;
+struct virtio_gpu_resource_flush        cmd_flush;
+struct virtio_gpu_ctrl_hdr              cmd_resp;
 
-  memset(gpuq.desc, 0, PGSIZE);
-  memset(gpuq.avail, 0, PGSIZE);
-  memset(gpuq.used, 0, PGSIZE);
 
-  // 5. MODERN REGISTRATION (Write 64-bit Addresses)
-  R(VIRTIO_MMIO_QUEUE_DESC_LOW)   = (uint64)gpuq.desc;
-  R(VIRTIO_MMIO_QUEUE_DESC_HIGH)  = (uint64)gpuq.desc >> 32;
-  R(VIRTIO_MMIO_DRIVER_DESC_LOW)  = (uint64)gpuq.avail;
-  R(VIRTIO_MMIO_DRIVER_DESC_HIGH) = (uint64)gpuq.avail >> 32;
-  R(VIRTIO_MMIO_DEVICE_DESC_LOW)  = (uint64)gpuq.used;
-  R(VIRTIO_MMIO_DEVICE_DESC_HIGH) = (uint64)gpuq.used >> 32;
-
-  // 6. Finish
-  R(VIRTIO_MMIO_QUEUE_READY) = 0x1;
-
-  for(int i = 0; i < NUM; i++)
-    gpuq.free[i] = 1;
-
-  R(VIRTIO_MMIO_STATUS) |= VIRTIO_CONFIG_S_DRIVER_OK;
-  virtio_gpu_start();
+// Helpers to interact with registers
+static uint32 reg_read(uint32 offset) {
+    return *(volatile uint32 *)(gpu.base_addr + offset);
 }
 
-uint64 gpu_framebuffer_pa = 0;
+static void reg_write(uint32 offset, uint32 val) {
+    *(volatile uint32 *)(gpu.base_addr + offset) = val;
+}
 
-// Helper: Send a command and wait for response
+// Send a command and wait for response
 void
 virtio_gpu_send(void *cmd, uint32 cmd_len, void *resp, uint32 resp_len)
 {
-    struct virtq_desc *desc = gpuq.desc;
-    struct virtq_avail *avail = gpuq.avail;
-    struct virtq_used *used = gpuq.used;
+    acquire(&gpu.lock);
 
-    acquire(&gpuq.lock);
-
-    // Allocate descriptors, one for CMD (read-only for GPU), one for RESP (write-only for GPU)
+    // Allocate descriptors
     int idx[2];
     for(int i = 0; i < 2; i++){
         int found = -1;
         for(int j = 0; j < NUM; j++){
-            if(gpuq.free[j]){
-                gpuq.free[j] = 0;
+            if(gpu.free[j]){
+                gpu.free[j] = 0;
                 found = j;
                 break;
             }
@@ -136,130 +69,158 @@ virtio_gpu_send(void *cmd, uint32 cmd_len, void *resp, uint32 resp_len)
         idx[i] = found;
     }
 
-    // Fill Descriptors
-    // Desc 0: command
+    // Set up descriptors
+    struct virtq_desc *desc = gpu.desc;
+    struct virtq_avail *avail = gpu.avail;
+    struct virtq_used *used = gpu.used;
+
+    // Desc 0: Command (Read-Only for GPU)
     desc[idx[0]].addr = (uint64) cmd;
     desc[idx[0]].len = cmd_len;
     desc[idx[0]].flags = VIRTQ_DESC_F_NEXT;
     desc[idx[0]].next = idx[1];
 
-    // Desc 1: response
+    // Desc 1: Response (Write-Only for GPU)
     desc[idx[1]].addr = (uint64) resp;
     desc[idx[1]].len = resp_len;
     desc[idx[1]].flags = VIRTQ_DESC_F_WRITE;
     desc[idx[1]].next = 0;
 
-    // Submit to Avail Ring
+    // Submit
     avail->ring[avail->idx % NUM] = idx[0];
     __sync_synchronize();
     avail->idx++;
-    __sync_synchronize(); 
+    __sync_synchronize();
 
-    // Notify Device
-    R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0;
+    // Notify
+    reg_write(VIRTIO_MMIO_QUEUE_NOTIFY, 0);
 
     // Poll for completion
-    static uint16 last_used_idx = 0;
-    while(used->idx == last_used_idx) {
-      last_used_idx++;
+    while(used->idx == gpu.used_idx) {
+        __sync_synchronize(); 
     }
+    gpu.used_idx++;
 
-    // Free Descriptors
-    gpuq.free[idx[0]] = 1;
-    gpuq.free[idx[1]] = 1;
-    release(&gpuq.lock);
+    gpu.free[idx[0]] = 1;
+    gpu.free[idx[1]] = 1;
+
+    release(&gpu.lock);
 }
 
-void
-virtio_gpu_start(void)
-{
-    struct virtio_gpu_resp_display_info resp_info;
-    struct virtio_gpu_ctrl_hdr resp_hdr;
 
-    // Get display info
-    struct virtio_gpu_ctrl_hdr cmd_info;
-    memset(&cmd_info, 0, sizeof(cmd_info));
-    cmd_info.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
-    virtio_gpu_send(&cmd_info, sizeof(cmd_info), &resp_info, sizeof(resp_info));
-    
-    printf("virtio_gpu: display info type %d (expected %d)\n", 
-            resp_info.hdr.type, VIRTIO_GPU_RESP_OK_DISPLAY_INFO);
+// Initialise GPU
+void virtio_gpu_init(void) {
 
+    initlock(&gpu.lock, "virtio_gpu");
 
-    // Create 2D resrouce
-    struct virtio_gpu_resource_create_2d cmd_create;
-    memset(&cmd_create, 0, sizeof(cmd_create));
+    // Find the GPU
+    gpu.base_addr = 0;
+    for(int i = 0; i < 8; i++) {
+        uint64 addr = 0x10001000 + (i * 0x1000);
+        uint32 magic = *(volatile uint32 *)(addr + VIRTIO_MMIO_MAGIC_VALUE);
+        uint32 device_id = *(volatile uint32 *)(addr + VIRTIO_MMIO_DEVICE_ID);
+        
+        if(magic == 0x74726976 && device_id == 16) {
+            gpu.base_addr = addr;
+            printf("virtio_gpu: Found at %p\n", (void *) addr);
+            break;
+        }
+    }
+    if (gpu.base_addr == 0) {
+        panic("virtio_gpu: not found");
+    }
+
+    // Setup Ring Memory
+    gpu.desc = (struct virtq_desc *) gpu_queue_page;
+    gpu.avail = (struct virtq_avail *) (gpu_queue_page + NUM * sizeof(struct virtq_desc));
+    gpu.used = (struct virtq_used *) (gpu_queue_page + 4096);
+
+    // Mark all descriptors free
+    for (int i = 0; i < NUM; i++) {
+        gpu.free[i] = 1;
+    }
+    gpu.used_idx = 0;
+
+    // Reset Device
+    reg_write(VIRTIO_MMIO_STATUS, 0);
+    reg_write(VIRTIO_MMIO_STATUS, VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER);
+
+    // Features
+    uint64 features = *(volatile uint64 *)(gpu.base_addr + VIRTIO_MMIO_DEVICE_FEATURES);
+    *(volatile uint64 *)(gpu.base_addr + VIRTIO_MMIO_DRIVER_FEATURES) = features;
+    reg_write(VIRTIO_MMIO_STATUS, reg_read(VIRTIO_MMIO_STATUS) | VIRTIO_CONFIG_S_FEATURES_OK);
+
+    if(!(reg_read(VIRTIO_MMIO_STATUS) & VIRTIO_CONFIG_S_FEATURES_OK))
+        panic("virtio_gpu: features fail");
+
+    // Config Queue 0
+    reg_write(VIRTIO_MMIO_QUEUE_SEL, 0);
+    if(reg_read(VIRTIO_MMIO_QUEUE_READY)) panic("virtio_gpu: queue ready?");
+
+    reg_write(VIRTIO_MMIO_QUEUE_NUM, NUM);
+
+    uint64 desc_pa = (uint64) gpu.desc;
+    uint64 avail_pa = (uint64) gpu.avail;
+    uint64 used_pa = (uint64) gpu.used;
+
+    reg_write(VIRTIO_MMIO_QUEUE_DESC_LOW, (uint32)desc_pa);
+    reg_write(VIRTIO_MMIO_QUEUE_DESC_HIGH, (uint32)(desc_pa >> 32));
+    reg_write(VIRTIO_MMIO_DRIVER_DESC_LOW, (uint32)avail_pa);
+    reg_write(VIRTIO_MMIO_DRIVER_DESC_HIGH, (uint32)(avail_pa >> 32));
+    reg_write(VIRTIO_MMIO_DEVICE_DESC_LOW, (uint32)used_pa);
+    reg_write(VIRTIO_MMIO_DEVICE_DESC_HIGH, (uint32)(used_pa >> 32));
+
+    reg_write(VIRTIO_MMIO_QUEUE_READY, 1);
+
+    // setup fb
+    // Create resource
     cmd_create.hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
     cmd_create.resource_id = 1;
     cmd_create.format = 1;
-    cmd_create.width = SCREEN_WIDTH;
-    cmd_create.height = SCREEN_HEIGHT;
-    virtio_gpu_send(&cmd_create, sizeof(cmd_create), &resp_hdr, sizeof(resp_hdr));
+    cmd_create.width = 640;
+    cmd_create.height = 400;
+    virtio_gpu_send(&cmd_create, sizeof(cmd_create), &cmd_resp, sizeof(cmd_resp));
 
-
-    // Allocate backing store
-    struct virtio_gpu_resource_attach_backing cmd_attach;
-    memset(&cmd_attach, 0, sizeof(cmd_attach));
+    // Attach backing
     cmd_attach.hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
     cmd_attach.resource_id = 1;
+    cmd_attach.nr_entries = 1;
+    cmd_attach.entries[0].addr = (uint64) gpu_buffer;
+    cmd_attach.entries[0].length = 640 * 400 * 4;
+    virtio_gpu_send(&cmd_attach, sizeof(cmd_attach), &cmd_resp, sizeof(cmd_resp));
 
-    int n_pages = (sizeof(gpu_buffer) + PGSIZE - 1) / PGSIZE;
-    cmd_attach.nr_entries = n_pages;
+    // Set scanout
+    cmd_scanout.hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
+    cmd_scanout.r.x = 0; cmd_scanout.r.y = 0;
+    cmd_scanout.r.width = 640; cmd_scanout.r.height = 400;
+    cmd_scanout.scanout_id = 0;
+    cmd_scanout.resource_id = 1;
+    virtio_gpu_send(&cmd_scanout, sizeof(cmd_scanout), &cmd_resp, sizeof(cmd_resp));
 
-    uint64 start_pa = (uint64) gpu_buffer; // VA == PA for kernel
+    // Driver OK
+    reg_write(VIRTIO_MMIO_STATUS, reg_read(VIRTIO_MMIO_STATUS) | VIRTIO_CONFIG_S_DRIVER_OK);
 
-    gpu_framebuffer_pa = start_pa; 
+    printf("virtio_gpu: display initialized 640x400\n");
+}
 
-    for(int i = 0; i < n_pages; i++){
-        cmd_attach.entries[i].addr = start_pa + (i * PGSIZE);
-        cmd_attach.entries[i].length = PGSIZE;
-    }
 
-    virtio_gpu_send(&cmd_attach, 
-        sizeof(cmd_attach.hdr) + sizeof(uint32)*2 + sizeof(struct virtio_gpu_mem_entry)*n_pages, 
-        &resp_hdr, sizeof(resp_hdr));
-
-    // Set scanout to link to screen
-    struct virtio_gpu_set_scanout cmd_scan;
-    memset(&cmd_scan, 0, sizeof(cmd_scan));
-    cmd_scan.hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
-    cmd_scan.resource_id = 1;
-    cmd_scan.scanout_id = 0;
-    cmd_scan.r.width = SCREEN_WIDTH;
-    cmd_scan.r.height = SCREEN_HEIGHT;
-    virtio_gpu_send(&cmd_scan, sizeof(cmd_scan), &resp_hdr, sizeof(resp_hdr));
+// Called by sys_flushfb
+void virtio_gpu_flush(void)
+{
+    // Transfer (RAM -> VRAM)
+    cmd_transfer.hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
+    cmd_transfer.r.x = 0; cmd_transfer.r.y = 0;
+    cmd_transfer.r.width = 640; cmd_transfer.r.height = 400;
+    cmd_transfer.offset = 0;
+    cmd_transfer.resource_id = 1;
     
-    printf("virtio_gpu: initialized 320x200\n");
-}
+    virtio_gpu_send(&cmd_transfer, sizeof(cmd_transfer), &cmd_resp, sizeof(cmd_resp));
 
-// Return the physical address of the framebuffer
-uint64
-virtio_gpu_get_framebuffer_addr(void)
-{
-  return gpu_framebuffer_pa;
-}
+    // Flush (VRAM -> Screen)
+    cmd_flush.hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
+    cmd_flush.r.x = 0; cmd_flush.r.y = 0;
+    cmd_flush.r.width = 640; cmd_flush.r.height = 400;
+    cmd_flush.resource_id = 1;
 
-
-void
-virtio_gpu_flush(void)
-{
-  struct virtio_gpu_resource_flush cmd_flush;
-  struct virtio_gpu_transfer_to_host_2d cmd_transfer;
-  struct virtio_gpu_ctrl_hdr resp;
-
-  // Copy from Backing Store to GPU VRAM
-  memset(&cmd_transfer, 0, sizeof(cmd_transfer));
-  cmd_transfer.hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
-  cmd_transfer.resource_id = 1;
-  cmd_transfer.r.width = SCREEN_WIDTH;
-  cmd_transfer.r.height = SCREEN_HEIGHT;
-  virtio_gpu_send(&cmd_transfer, sizeof(cmd_transfer), &resp, sizeof(resp));
-
-  // Draw VRAM to Screen
-  memset(&cmd_flush, 0, sizeof(cmd_flush));
-  cmd_flush.hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
-  cmd_flush.resource_id = 1;
-  cmd_flush.r.width = SCREEN_WIDTH;
-  cmd_flush.r.height = SCREEN_HEIGHT;
-  virtio_gpu_send(&cmd_flush, sizeof(cmd_flush), &resp, sizeof(resp));
+    virtio_gpu_send(&cmd_flush, sizeof(cmd_flush), &cmd_resp, sizeof(cmd_resp));
 }

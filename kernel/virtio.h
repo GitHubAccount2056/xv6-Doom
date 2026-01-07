@@ -51,34 +51,35 @@
 
 // a single descriptor, from the spec.
 struct virtq_desc {
-  uint64 addr;
-  uint32 len;
-  uint16 flags;
-  uint16 next;
-};
+    uint64 addr;
+    uint32 len;
+    uint16 flags;
+    uint16 next;
+} __attribute__((packed));
 #define VRING_DESC_F_NEXT  1 // chained with another descriptor
 #define VRING_DESC_F_WRITE 2 // device writes (vs read)
 
 // the (entire) avail ring, from the spec.
 struct virtq_avail {
-  uint16 flags; // always zero
-  uint16 idx;   // driver will write ring[idx] next
-  uint16 ring[NUM]; // descriptor numbers of chain heads
-  uint16 unused;
-};
+    uint16 flags;
+    uint16 idx;
+    uint16 ring[NUM];
+    uint16 unused;
+} __attribute__((packed));
 
 // one entry in the "used" ring, with which the
 // device tells the driver about completed requests.
 struct virtq_used_elem {
-  uint32 id;   // index of start of completed descriptor chain
-  uint32 len;
-};
+    uint32 id;
+    uint32 len;
+} __attribute__((packed));
+
 
 struct virtq_used {
-  uint16 flags; // always zero
-  uint16 idx;   // device increments when it adds a ring[] entry
-  struct virtq_used_elem ring[NUM];
-};
+    uint16 flags;
+    uint16 idx;
+    struct virtq_used_elem ring[NUM];
+} __attribute__((packed));
 
 // these are specific to virtio block devices, e.g. disks,
 // described in Section 5.2 of the spec.
@@ -95,7 +96,6 @@ struct virtio_blk_req {
   uint64 sector;
 };
 
-// From the virtio spec and https://blog.stephenmarz.com/2020/11/11/risc-v-os-using-rust-graphics/#overview
 // Command Codes (Input)
 #define VIRTIO_GPU_CMD_GET_DISPLAY_INFO    0x0100
 #define VIRTIO_GPU_CMD_RESOURCE_CREATE_2D  0x0101
@@ -114,76 +114,68 @@ struct virtio_blk_req {
 #define VIRTQ_DESC_F_NEXT  1 // Next field contains linked descriptor index
 #define VIRTQ_DESC_F_WRITE 2 // Device writes (we read)
 
+// Struct are all copied from the specs
+// All commands to GPU start with this header
 struct virtio_gpu_ctrl_hdr {
-  uint32 type;
-  uint32 flags;
-  uint64 fence_id;
-  uint32 ctx_id;
-  uint32 padding;
-};
-
-// Basic Rectangle definition
-struct virtio_gpu_rect {
-  uint32 x;
-  uint32 y;
-  uint32 width;
-  uint32 height;
-};
-
-// 1. Get Display Info (The Response)
-#define VIRTIO_GPU_MAX_SCANOUTS 16
-struct virtio_gpu_resp_display_info {
-  struct virtio_gpu_ctrl_hdr hdr;
-  struct virtio_gpu_display_one {
-    struct virtio_gpu_rect r;
-    uint32 enabled;
+    uint32 type;
     uint32 flags;
-  } pmodes[VIRTIO_GPU_MAX_SCANOUTS];
-};
+    uint64 fence_id;
+    uint32 ctx_id;
+    uint32 padding;
+} __attribute__((packed));
 
-// 2. Resource Create 2D (Create the buffer handle on GPU side)
+// Basic rectangle definition
+struct virtio_gpu_rect {
+    uint32 x;
+    uint32 y;
+    uint32 width;
+    uint32 height;
+} __attribute__((packed));
+
+// Allocatr resource_id for new image
 struct virtio_gpu_resource_create_2d {
-  struct virtio_gpu_ctrl_hdr hdr;
-  uint32 resource_id;
-  uint32 format;
-  uint32 width;
-  uint32 height;
-};
+    struct virtio_gpu_ctrl_hdr hdr;
+    uint32 resource_id;
+    uint32 format;
+    uint32 width;
+    uint32 height;
+} __attribute__((packed));
 
-// 3. Attach Backing (Link GPU handle to Physical RAM)
+// A page of RAM to send
 struct virtio_gpu_mem_entry {
-  uint64 addr;
-  uint32 length;
-  uint32 padding;
-};
+    uint64 addr;
+    uint32 length;
+    uint32 padding;
+} __attribute__((packed));
 
+// Tell the GPU where to look in RAM for resource_id
 struct virtio_gpu_resource_attach_backing {
-  struct virtio_gpu_ctrl_hdr hdr;
-  uint32 resource_id;
-  uint32 nr_entries;
-  struct virtio_gpu_mem_entry entries[64]; // 320 * 200 * 4 / 4096 = 63 pages
-};
+    struct virtio_gpu_ctrl_hdr hdr;
+    uint32 resource_id;
+    uint32 nr_entries;
+    struct virtio_gpu_mem_entry entries[1];
+} __attribute__((packed));
 
-// 4. Set Scanout (Link GPU handle to the Monitor/Display)
+// Set scanout (link GPU handle to the display)
 struct virtio_gpu_set_scanout {
-  struct virtio_gpu_ctrl_hdr hdr;
-  struct virtio_gpu_rect r;
-  uint32 scanout_id;
-  uint32 resource_id;
-};
+    struct virtio_gpu_ctrl_hdr hdr;
+    struct virtio_gpu_rect r;
+    uint32 scanout_id;
+    uint32 resource_id;
+} __attribute__((packed));
 
-// 5. Transfer / Flush (Update the screen)
+// Transfer/dlush
 struct virtio_gpu_transfer_to_host_2d {
-  struct virtio_gpu_ctrl_hdr hdr;
-  struct virtio_gpu_rect r;
-  uint64 offset;
-  uint32 resource_id;
-  uint32 padding;
-};
+    struct virtio_gpu_ctrl_hdr hdr;
+    struct virtio_gpu_rect r;
+    uint64 offset;
+    uint32 resource_id;
+    uint32 padding;
+} __attribute__((packed));
 
 struct virtio_gpu_resource_flush {
-  struct virtio_gpu_ctrl_hdr hdr;
-  struct virtio_gpu_rect r;
-  uint32 resource_id;
-  uint32 padding;
-};
+    struct virtio_gpu_ctrl_hdr hdr;
+    struct virtio_gpu_rect r;
+    uint32 resource_id;
+    uint32 padding;
+} __attribute__((packed));

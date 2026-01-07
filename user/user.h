@@ -1,10 +1,24 @@
+#ifndef XV6_USER_H
+#define XV6_USER_H
+
 #define SBRK_ERROR ((char *)-1)
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2
+#ifndef NULL
+#define NULL 0
+#endif
 typedef unsigned long size_t;
 typedef long int off_t;
 struct stat;
+struct rtcdate;
+
+typedef unsigned int uint;
+typedef unsigned short ushort;
+typedef unsigned char uchar;
+typedef unsigned int uint32;
+typedef unsigned long uint64;
+
 
 typedef struct {
   int fd;
@@ -13,17 +27,6 @@ typedef struct {
 extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
-
-// Replacement for stdint.h
-typedef unsigned char  uint8_t;
-typedef unsigned short uint16_t;
-typedef unsigned int   uint32_t;
-typedef unsigned long  uint64_t;
-typedef char           int8_t;
-typedef short          int16_t;
-typedef int            int32_t;
-typedef long           int64_t;
-typedef uint8_t        byte;
 
 // Replacement for limits.h
 #ifndef INT_MAX
@@ -73,8 +76,10 @@ int munmap(void *addr, size_t len);
 int lseek(int fd, int offset, int whence);
 uint64 getfb(void);
 void flushfb(void);
+int getch(void);
 
-// ulib.c
+// ulib.c/doomgeneric_xv6.c
+extern int errno;
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
 void *memmove(void*, const void*, int);
@@ -97,6 +102,21 @@ long ftell(FILE *f);
 int fseek(FILE *f, long off, int origin);
 int fclose(FILE *f);
 FILE * fopen(const char *fname, const char *mode);
+char* strrchr(const char *s, int c);
+int   strcasecmp(const char *s1, const char *s2);
+char* strdup(const char *s);
+int isspace(int c);
+int toupper(int c);
+int abs(int x);
+double fabs(double x);
+int remove(const char *filename);
+int rename(const char *old, const char *new);
+double atof(const char *s);
+int sscanf(const char *str, const char *format, ...);
+char* strstr(const char *haystack, const char *needle);
+char* strncpy(char *dest, const char *src, int n);
+uint64 fwrite(const void *ptr, uint64 size, uint64 nmemb, FILE *stream);
+void* realloc(void *ptr, uint new_size);
 
 // printf.c
 void fprintf(int, const char*, ...) __attribute__ ((format (printf, 2, 3)));
@@ -106,3 +126,5 @@ void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
 void* malloc(uint);
 void free(void*);
 void* calloc(uint n, uint size);
+
+#endif

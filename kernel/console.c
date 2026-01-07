@@ -196,3 +196,28 @@ consoleinit(void)
   devsw[CONSOLE].read = consoleread;
   devsw[CONSOLE].write = consolewrite;
 }
+
+// Non-blocking read for games
+// Probably have to change this for the Virtio Input
+int consoleget(void)
+{
+  int c;
+  acquire(&cons.lock);
+  if(cons.r == cons.e){
+    release(&cons.lock);
+    return -1;
+  }
+
+  c = cons.buf[cons.r++ % INPUT_BUF_SIZE];
+
+  if (cons.w < cons.r) {
+      cons.w = cons.r;
+  }
+  
+  if (cons.e < cons.r) {
+      cons.e = cons.r;
+  }
+
+  release(&cons.lock);
+  return c;
+}

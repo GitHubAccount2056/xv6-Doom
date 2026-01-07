@@ -62,7 +62,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -Wno-unknown-attributes -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -Wno-unknown-attributes -O -fno-omit-frame-pointer -ggdb -gdwarf-2 -mno-relax
 CFLAGS += -march=rv64gc
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
@@ -126,6 +126,30 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
+DOOM_OBJS = \
+	$U/doomgeneric.o \
+	$U/doomgeneric_xv6.o \
+	$U/am_map.o $U/doomdef.o $U/doomstat.o $U/dstrings.o \
+	$U/d_event.o $U/d_items.o $U/d_iwad.o $U/d_loop.o $U/d_main.o $U/d_mode.o $U/d_net.o \
+	$U/f_finale.o $U/f_wipe.o \
+	$U/g_game.o \
+	$U/hu_lib.o $U/hu_stuff.o \
+	$U/info.o \
+	$U/m_argv.o $U/m_bbox.o $U/m_cheat.o $U/m_config.o $U/m_controls.o \
+	$U/m_fixed.o $U/m_menu.o $U/m_misc.o $U/m_random.o \
+	$U/p_ceilng.o $U/p_doors.o $U/p_enemy.o $U/p_floor.o $U/p_inter.o $U/p_lights.o \
+	$U/p_map.o $U/p_maputl.o $U/p_mobj.o $U/p_plats.o $U/p_pspr.o $U/p_saveg.o \
+	$U/p_setup.o $U/p_sight.o $U/p_spec.o $U/p_switch.o $U/p_telept.o $U/p_tick.o $U/p_user.o \
+	$U/r_bsp.o $U/r_data.o $U/r_draw.o $U/r_main.o $U/r_plane.o $U/r_segs.o \
+	$U/r_sky.o $U/r_things.o \
+	$U/s_sound.o $U/sounds.o \
+	$U/st_lib.o $U/st_stuff.o \
+	$U/tables.o \
+	$U/v_video.o \
+	$U/sha1.o $U/w_checksum.o $U/w_file.o $U/w_file_stdc.o $U/w_main.o $U/w_wad.o \
+	$U/wi_stuff.o \
+	$U/z_zone.o
+
 UPROGS=\
 	$U/_cat\
 	$U/_echo\
@@ -147,7 +171,12 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_mmaptest\
-	$U/_bigfile
+	$U/_bigfile\
+	$U/_doom
+
+$U/_doom: $(DOOM_OBJS) $U/ulib.o $U/usys.o $U/umalloc.o $U/printf.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_doom $(DOOM_OBJS) $U/ulib.o $U/usys.o $U/umalloc.o $U/printf.o
+	$(OBJDUMP) -S $U/_doom > $U/doom.asm
 
 fs.img: mkfs/mkfs README doom1.wad $(UPROGS)
 	mkfs/mkfs fs.img README doom1.wad $(UPROGS)

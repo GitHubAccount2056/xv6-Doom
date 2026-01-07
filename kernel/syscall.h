@@ -25,3 +25,4 @@
 #define SYS_lseek  24
 #define SYS_getfb  25
 #define SYS_flushfb 26
+#define SYS_getch  27

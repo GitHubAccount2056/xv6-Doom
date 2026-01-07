@@ -690,3 +690,8 @@ sys_lseek(void) {
   f -> off = new_offset;
   return new_offset;
 }
+
+uint64 sys_getch(void)
+{
+  return consoleget();
+}

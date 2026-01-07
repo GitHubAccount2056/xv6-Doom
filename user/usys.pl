@@ -47,3 +47,4 @@ entry("munmap");
 entry("lseek");
 entry("getfb");
 entry("flushfb");
+entry("getch");

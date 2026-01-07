@@ -124,6 +124,7 @@ prepare_return(void)
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
   x |= SSTATUS_SPIE; // enable interrupts in user mode
+  x |= (1L << 13);   // enable FPU
   w_sstatus(x);
 
   // set S Exception Program Counter to the saved user pc.

@@ -108,13 +108,27 @@ sys_uptime(void)
   return xticks;
 }
 
+extern uchar gpu_buffer[]; 
 
+// Get framebuffer va
 uint64
 sys_getfb(void)
 {
-  return virtio_gpu_get_framebuffer_addr();
+  struct proc *p = myproc();
+  uint64 pa = (uint64) gpu_buffer;
+  uint64 va = 0x40000000;
+  
+  uint64 sz = PGROUNDUP(640 * 400 * 4);
+
+  if(mappages(p->pagetable, va, sz, pa, PTE_W | PTE_R | PTE_U) < 0) {
+    printf("sys_getfb: mappages failed\n");
+    return -1;
+  }
+
+  return va;
 }
 
+// Flush frame buffer to GPU
 uint64
 sys_flushfb(void)
 {

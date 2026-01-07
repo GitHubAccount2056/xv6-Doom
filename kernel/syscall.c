@@ -106,6 +106,7 @@ extern uint64 sys_munmap(void);
 extern uint64 sys_lseek(void);
 extern uint64 sys_getfb(void);
 extern uint64 sys_flushfb(void);
+extern uint64 sys_getch(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -135,7 +136,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_munmap]  sys_munmap,
 [SYS_lseek]   sys_lseek,
 [SYS_getfb]   sys_getfb,
-[SYS_flushfb] sys_flushfb
+[SYS_flushfb] sys_flushfb,
+[SYS_getch]   sys_getch
 };
 
 void

@@ -222,20 +222,21 @@ strcasecmp(const char *s1, const char *s2) {
   return *s2 - *s1;
 }
 
-int
-strncasecmp(const char *s1, const char *s2, int n) {
-  while (n > 0) {
-    char c1 = (*s1 >= 'A' && *s1 <= 'Z') ? *s1 + ('a' - 'A') : *s1;
-    char c2 = (*s2 >= 'A' && *s2 <= 'Z') ? *s2 + ('a' - 'A') : *s2;
-    if (c1 != c2) {
-      return c1 - c2;
-    }
-    if (c1 == '\0') {
-      return 0;
-    }
+int strncasecmp(const char *s1, const char *s2, int n) {
+  if (n <= 0) return 0;
+  while (n-- > 0) {
+    char c1 = *s1;
+    char c2 = *s2;
+    
+    if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+    if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+    
+    if (c1 != c2) return c1 - c2;
+    
+    if (c1 == 0) return 0;
+    
     s1++;
     s2++;
-    n--;
   }
   return 0;
 }
@@ -252,14 +253,4 @@ strncmp(const char *p, const char *q, uint n)
     return 0;
   }
   return (uchar)*p - (uchar)*q;
-}
-
-uint32
-DG_GetTicksMs() {
-  return uptime() * 10; // 1 tick == 10 ms
-}
-
-void
-DG_SleepMs(uint32 ms) {
-  pause(ms / 10);
 }
