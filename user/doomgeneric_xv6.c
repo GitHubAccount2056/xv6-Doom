@@ -201,20 +201,6 @@ int rename(const char *old, const char *new) {
   return unlink(old);
 }
 
-// Memory ans String Helpers
-// Magic to move the stack to heap in user space; written by Gemini 3 Pro
-void run_on_new_stack(int (*func)(int, char**), int argc, char **argv, void *new_stack_top) {
-    asm volatile(
-        "mv sp, %0 \n"  // Move new_stack_top into SP
-        "mv a0, %1 \n"  // Move argc into a0
-        "mv a1, %2 \n"  // Move argv into a1
-        "jalr %3 \n"    // Jump to func (real_main)
-        : 
-        : "r" (new_stack_top), "r" (argc), "r" (argv), "r" (func)
-        : "a0", "a1", "ra", "memory"
-    );
-}
-
 // Math stuff
 int abs(int x) { 
     return x < 0 ? -x : x; 
@@ -745,17 +731,10 @@ int DG_GetKey(int *pressed, unsigned char *key) {
 
 void DG_SetWindowTitle(const char * title) {}
 
-// --- 6. Main ---
-// Everything's on heap now
-int real_main(int argc, char *argv[]) { 
-    printf("DEBUG: Entered real_main (New Stack)\n");
-    
-    unlink("default.cfg");
-    unlink("doomrc");
+// Main
+int main(int argc, char *argv[]) {
 
     uint64 fb_addr = getfb();
-    
-    printf("DEBUG: getfb returned virtual address %p\n", (void*)fb_addr);
 
     if(fb_addr == -1 || fb_addr == 0) {
         printf("DEBUG: getfb failed!\n");
@@ -766,30 +745,12 @@ int real_main(int argc, char *argv[]) {
     
     I_VideoBuffer = DG_Malloc(320 * 200);;
 
-    printf("DEBUG: Calling doomgeneric_Create...\n");
     doomgeneric_Create(argc, argv); 
     
-    printf("DEBUG: Entering Tick Loop...\n");
     while (1)
     {
         doomgeneric_Tick();
     }
-}
 
-// New stack allocated on heap
-__attribute__ ((aligned (16))) 
-char doom_stack[64 * 1024]; 
-
-// xv6 stack space is only 4KB, so we move the stack to heap
-int main(int argc, char *argv[]) {
-    printf("DEBUG: Early Main Start (Static Stack)\n");
-
-    void *stack_top = doom_stack + sizeof(doom_stack);
-
-    printf("DEBUG: Switching to static stack at %p...\n", stack_top);
-
-    run_on_new_stack(real_main, argc, argv, stack_top);
-
-    printf("DEBUG: This should NEVER print.\n");
     return 0;
 }
