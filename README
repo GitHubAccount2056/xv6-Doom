@@ -1,48 +1,49 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+INTRODUCTION
+
+This was an attempt to modify the MIT teaching operating system xv6 to run Doom (the shareware version; I didn't want to accidentally do anything illegal). Overall, it works decently well, for such a simple OS to start with.
+
 
 ACKNOWLEDGMENTS
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)).  See also https://pdos.csail.mit.edu/6.1810/, which provides
-pointers to on-line resources for v6.
+1. The code for the unmodified version of xv6 can be found here: https://github.com/mit-pdos/xv6-riscv
+2. MIT's 6.1810's fs lab was extremely helpful for making the file system larger (using doubly-indrect blocks). The lab can be found here: https://pdos.csail.mit.edu/6.828/2025/labs/fs.html
+3. The code for doomgeneric can be found here: https://github.com/ozkl/doomgeneric.
+4. The code for the Virtio GPU and the Virtio Input can be found here: https://github.com/sgmarz/osblog/blob/master/risc_v/src/gpu.rs and https://github.com/sgmarz/osblog/blob/master/risc_v/src/input.rs
+5. Google Gemini 3 Pro helped in writing some of the C helper functions in doomgeneric_xv6. I have indicated where it was used in that file, although near the end I was a little more sloppy with crediting.
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
 
-We are also grateful for the bug reports and patches contributed by
-Abhinavpatel00, Takahiro Aoyagi, Marcelo Arroyo, Hirbod Behnam, Silas
-Boyd-Wickizer, Anton Burtsev, carlclone, Ian Chen, clivezeng, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi,Wenyang Duan,
-echtwerner, eyalz800, Nelson Elhage, Saar Ettinger, Alice Ferrazzi,
-Nathaniel Filardo, flespark, Peter Froehlich, Yakir Goaron, Shivam
-Handa, Matt Harvey, Bryan Henry, jaichenhengjie, Jim Huang, Matúš
-Jókay, John Jolly, Alexander Kapshuk, Anders Kaseorg, kehao95,
-Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt, Eddie Kohler, Vadim
-Kolontsov, Austin Liew, l0stman, Pavan Maddamsetti, Imbar Marinescu,
-Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi Merimovich,
-mes900903, Mark Morrissey, mtasm, Joel Nider, Hayato Ohhashi,
-OptimisticSide, papparapa, phosphagos, Harry Porter, Greg Price, Zheng
-qhuo, Quancheng, RayAndrew, Jude Rich, segfault, Ayan Shafqat, Eldar
-Sehayek, Yongming Shen, Fumiya Shigemitsu, snoire, Taojie, Cam Tenny,
-tyfkda, Warren Toomey, Stephen Tu, Alissa Tung, Rafael Ubal, unicornx,
-Amane Uehara, Pablo Ventura, Luc Videau, Xi Wang, WaheedHafez, Keiichi
-Watanabe, Lucas Wolf, Nicolas Wolovick, wxdao, Grant Wu, x653, Andy
-Zhang, Jindong Zhang, Icenowy Zheng, ZhUyU1997, and Zou Chang Wei.
+HOW TO RUN IT
 
-ERROR REPORTS
+From the README in the xv6 source code: 
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching
-operating system for MIT's 6.1810, so we are more interested in
-simplifications and clarifications than new features.
+'You will need a RISC-V "newlib" tool chain from https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for riscv64-softmmu.  Once they are installed, and in your shell search path, you can run "make qemu".'
 
-BUILDING AND RUNNING XV6
+Alternatively, a simple guide on installation can be found in the "Tools Used in 6.1810" page, here: https://pdos.csail.mit.edu/6.828/2025/tools.html
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu.  Once they are installed, and in your shell
-search path, you can run "make qemu".
+After that, run 'make qemu' in the terminal and then 'doom' in the xv6 shell.
+
+
+REFLECTION
+
+Overall this mini project went very smoothly. An outline of the approximate process:
+1. Load xv6.
+2. Add the 'Large files' modification in the fs lab. This was simple since I had already completed it myself prior to starting this project; it was also one of the simpler labs (compared to mmap and the networking one, although the networking one was more so because the lecture on networking was one day before the lab was due). mkfs/mkfs.c was also updated to include the doubly-indirect block logic.
+3. Load the doom1.wad file into the file system. I ended up loading the entire file into RAM because the lseek and mmap syscalls were faulty.
+4. Write some C helper functions that doomgeneric expects and xv6 lacks in doomgeneric_xv6.c. Google Gemini 3 Pro was very helpful in implementing some of the more complicated functions, like vsnprint and sprintint, as well as including all the Doom system stubs and the Linux keyboard scancodes, replacing i_input.c in the original game files.
+5. Load the doomgeneric game files and change all the headers to include doomgeneric.h (this was modified to replace some of the types that weren't available, as well as the numbers in limits.h).
+6. Write virtio_gpu.c and add the GPU device to the Makefile, and some syscalls to get/flush the framebuffer. Google Gemini 3 Pro helped with understanding what to actually do here (since the specs didn't say much and the Rust code provided by Marz was foreign to me).
+7. Write virtio_input.c and add the input device to the Makefile and some syscalls to write input to user space. 
+
+I did use AI a fair bit for the C helper functions, as they were not familiar to me and I didn't know what some of them did (let alone how to implement them!). In hindsight I probably could've downloaded some pre-written user library from the internet. AI was also very useful in helping me understand the Rust code for the virtio_gpu.c, since I didn't know Rust or how to write a GPU driver, but I after I understood what going on I was able to translate it into C, and eventually write the input driver code myself.
+
+One thing that I found that AI was not very good at was debugging. Sometime it will insist that some thing is correct even though it isn't, or vice versa. For example, Gemini Pro 3 insisted that there was not enough stack space for the Doom program, since xv6 only allocated one fixed page of stack space (4KB), and to move the stack the a user space heap by writing a wrapper for the main function. This ended up being completely wrong, as the crash was for a completely different reason, and the design was subsequently removed. Another example was it was adamant that the I_GetTime function was wrong, even though it worked well. I think AI is good if the programmer knows what they're doing but it can easily lead people astray.
+
+
+EXTENSIONS
+
+There are a few extensions/modifications that could be made to the current design, which I may implement in the future:
+1. Right now, it uses a RAM file to load the entire doom1.wad file into memory. That's fine, since xv6 has 128 MB of RAM, easily enough to cater for the 4MB doom1.wad file. However, it would be nice if the sys_map would work properly (for some reason it keeps reading pointers that it shouldn't be reading).
+2. The saving mechanism for the game has not been implemented, so all progress is lost once QEMU is exited.
+3. There is no music/sound (this is much harder to implement). I have included the i_sound.c, i_sdlmusic.c, and i_sdlsound.c files (unmodified) from the doomgeneric code, in case I implement it in the future.
+4. The virtio keyboard keys are quite sticky (I probably implemented something wrong); a 'hack' that I did was to slow down the Doom Ticks loop by sleeping for 75 ticks before proceeding. 75 xv6 ticks is around 750 ms.
+5. Use the actual commerical Doom wad.

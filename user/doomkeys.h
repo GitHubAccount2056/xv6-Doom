@@ -92,7 +92,7 @@
 #define KEYP_EQUALS     KEY_EQUALS
 #define KEYP_ENTER      KEY_ENTER
 
-// Linux translations
+// Linux scancodes for keyboards
 #define KEY_ESC 1
 #define KEY_1 2
 #define KEY_2 3

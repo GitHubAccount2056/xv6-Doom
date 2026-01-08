@@ -508,6 +508,14 @@ int xlate_key(int c)
         case KEY_E: return KEY_USE;
         case KEY_F: return KEY_PAUSE;
         case KEY_ESC: return KEY_ESCAPE;
+
+        case KEY_1: return '1';
+        case KEY_2: return '2';
+        case KEY_3: return '3';
+        case KEY_4: return '4';
+        case KEY_5: return '5';
+        case KEY_6: return '6';
+        case KEY_7: return '7';
         
         case KEY_Q: return ',';
         case KEY_R: return '.';
