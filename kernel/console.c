@@ -199,6 +199,7 @@ consoleinit(void)
 
 // Non-blocking read for games
 // Probably have to change this for the Virtio Input
+/*
 int consoleget(void)
 {
   int c;
@@ -220,4 +221,4 @@ int consoleget(void)
 
   release(&cons.lock);
   return c;
-}
+} */

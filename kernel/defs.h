@@ -21,7 +21,7 @@ void            bunpin(struct buf*);
 void            consoleinit(void);
 void            consoleintr(int);
 void            consputc(int);
-int             consoleget(void);
+// int             consoleget(void);
 
 // exec.c
 int             kexec(char*, char**);
@@ -187,6 +187,11 @@ void            virtio_disk_intr(void);
 void            virtio_gpu_init(void);
 uint64          virtio_gpu_get_framebuffer_addr(void);
 void            virtio_gpu_flush(void);
+
+// virtio_input.c
+void            virtio_input_poll(void);
+int             kqueue_pop(uint16 *code, uint32 *val);
+void            virtio_input_init(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

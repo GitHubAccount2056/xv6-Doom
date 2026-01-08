@@ -16,6 +16,7 @@ struct rtcdate;
 typedef unsigned int uint;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
+typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long uint64;
 
@@ -76,7 +77,7 @@ int munmap(void *addr, size_t len);
 int lseek(int fd, int offset, int whence);
 uint64 getfb(void);
 void flushfb(void);
-int getch(void);
+int getch(uint16 *code, uint32 *val);
 
 // ulib.c/doomgeneric_xv6.c
 extern int errno;

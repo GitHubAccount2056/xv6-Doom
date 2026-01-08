@@ -18,15 +18,14 @@ struct {
     struct virtq_used *used;
     int free[NUM];
     uint16 used_idx; 
-    
 } gpu;
 
 // Queue Memory
-__attribute__((aligned(4096)))
-char gpu_queue_page[4096 * 2];
+__attribute__((aligned(PGSIZE)))
+char gpu_queue_page[PGSIZE * 2];
 
 // Framebuffer
-__attribute__((aligned(4096)))
+__attribute__((aligned(PGSIZE)))
 uchar gpu_buffer[640 * 400 * 4]; 
 
 
@@ -133,7 +132,7 @@ void virtio_gpu_init(void) {
     // Setup Ring Memory
     gpu.desc = (struct virtq_desc *) gpu_queue_page;
     gpu.avail = (struct virtq_avail *) (gpu_queue_page + NUM * sizeof(struct virtq_desc));
-    gpu.used = (struct virtq_used *) (gpu_queue_page + 4096);
+    gpu.used = (struct virtq_used *) (gpu_queue_page + PGSIZE);
 
     // Mark all descriptors free
     for (int i = 0; i < NUM; i++) {

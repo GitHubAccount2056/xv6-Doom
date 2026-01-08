@@ -490,39 +490,32 @@ typedef struct {
 extern DG_Color DG_Palette[256];
 
 int xlate_key(int c)
-{
+{   
     switch(c) {
-        // Movement
-        case 'w': return KEY_UPARROW;
-        case 's': return KEY_DOWNARROW;
-        case 'a': return KEY_LEFTARROW;
-        case 'd': return KEY_RIGHTARROW;
 
-        // Actions
-        case 10:  return KEY_ENTER;      // LF
-        case 13:  return KEY_ENTER;      // CR
-        case ' ': return KEY_USE;        // Use
-        case 'f': return KEY_FIRE;       // Fire
-        case 27:  return KEY_ESCAPE;
+        case KEY_W: return KEY_UPARROW;
+        case KEY_S: return KEY_DOWNARROW;
+        case KEY_A: return KEY_LEFTARROW;
+        case KEY_D: return KEY_RIGHTARROW;
+        case KEY_UP: return KEY_UPARROW;
+        case KEY_DOWN: return KEY_DOWNARROW;
+        case KEY_LEFT: return KEY_LEFTARROW;
+        case KEY_RIGHT: return KEY_RIGHTARROW;
         
-        // Menu / Prompts (Quit Game? Y/N)
-        case 'y': return 'y';
-        case 'n': return 'n';
+        case KEY_ENTER: return KEY_ENTER;
+        case KEY_LF: return KEY_ENTER;
+        case KEY_SPACE: return KEY_FIRE;
+        case KEY_E: return KEY_USE;
+        case KEY_F: return KEY_PAUSE;
+        case KEY_ESC: return KEY_ESCAPE;
         
-        // Weapon Selection (Optional but helpful)
-        case '1': return '1';
-        case '2': return '2';
-        case '3': return '3';
-        case '4': return '4';
-        case '5': return '5';
-        case '6': return '6';
-        case '7': return '7';
+        case KEY_Q: return ',';
+        case KEY_R: return '.';
 
-        // Strafe
-        case 'q': return ',';            
-        case 'r': return '.';            
+        case KEY_Y: return 'y';
+        case KEY_N: return 'n';
 
-        default:  return 0;
+        default: return 0;
     }
 }
 
@@ -687,36 +680,17 @@ void DG_KeyInput(int key, int pressed)
 
 void DG_SleepMs(uint32_t ms)
 {
-    int c;
-    while((c = getch()) != -1) {
+    uint16_t code;
+    uint32_t val;
 
-        if(c >= 'A' && c <= 'Z') {
-            c += 32;
-        }
-        
-        int k = xlate_key(c);
-
-        if(k > 0 && k < 256) {
-            
-            if(key_life[k] <= 0) {
-                DG_KeyInput(k, 1);
-            }
-            
-            key_life[k] = KEY_LIFETIME;
-        }
-    }
-
-    for (int k = 0; k < 256; k++) {
-        if (key_life[k] > 0) {
-            key_life[k]--;
-            
-            if(key_life[k] == 0) {
-                DG_KeyInput(k, 0); 
-            }
+    while (getch(&code, &val)) {
+        int key = xlate_key(code);
+        if (key) {
+             DG_KeyInput(key, (val == 1)); 
         }
     }
     
-    if(ms > 0) {
+    if (ms > 0) {
         pause(ms / 10);
     }
 }

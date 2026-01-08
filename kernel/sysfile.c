@@ -693,5 +693,20 @@ sys_lseek(void) {
 
 uint64 sys_getch(void)
 {
-  return consoleget();
+  uint64 code_addr, val_addr;
+  uint16 code;
+  uint32 val;
+
+  argaddr(0, &code_addr);
+  argaddr(1, &val_addr);
+
+  virtio_input_poll();
+
+  if (kqueue_pop(&code, &val)) {
+    copyout(myproc() -> pagetable, code_addr, (char *) &code, sizeof(code));
+    copyout(myproc() -> pagetable, val_addr, (char *) &val, sizeof(val));
+    return 1;
+  }
+
+  return 0;
 }
