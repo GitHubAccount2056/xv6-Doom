@@ -405,7 +405,7 @@ void doomgeneric_Tick()
 {
     // 1. Poll Input and Sleep (Throttle frame rate)
     // This calls getch(), translates keys, and posts events to Doom.
-    DG_SleepMs(1); 
+    DG_SleepMs(75); 
 
     // 2. Start Frame
     I_StartFrame ();
