@@ -1,6 +1,6 @@
 INTRODUCTION
 
-This was an attempt to modify the MIT teaching operating system xv6 to run Doom (the shareware version; I didn't want to accidentally do anything illegal). Overall, it works decently well, for such a simple OS to start with.
+This was an attempt to modify the MIT teaching operating system xv6 to run Doom (the shareware version; I didn't want to accidentally do anything illegal, but it works with the full version too). Overall, it works decently well, for such a simple OS to start with.
 
 
 ACKNOWLEDGMENTS
@@ -46,4 +46,3 @@ There are a few extensions/modifications that could be made to the current desig
 2. The saving mechanism for the game has not been implemented, so all progress is lost once QEMU is exited.
 3. There is no music/sound (this is much harder to implement). I have included the i_sound.c, i_sdlmusic.c, and i_sdlsound.c files (unmodified) from the doomgeneric code, in case I implement it in the future.
 4. The virtio keyboard keys are quite sticky (I probably implemented something wrong); a 'hack' that I did was to slow down the Doom Ticks loop by sleeping for 75 ticks before proceeding. 75 xv6 ticks is around 750 ms.
-5. Use the actual commerical Doom wad.

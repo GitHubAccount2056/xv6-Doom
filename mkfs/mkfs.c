@@ -238,15 +238,19 @@ balloc(int used)
 {
   uchar buf[BSIZE];
   int i;
+  int start = xint(sb.bmapstart);
+  int bit_idx = 0, block_idx = 0;
 
   printf("balloc: first %d blocks have been allocated\n", used);
-  assert(used < BPB);
-  bzero(buf, BSIZE);
-  for(i = 0; i < used; i++){
-    buf[i/8] = buf[i/8] | (0x1 << (i%8));
+  while (bit_idx < used) {
+    bzero(buf, BSIZE);
+    for(i = 0; i < BPB && bit_idx < used; i++){
+      buf[i/8] = buf[i/8] | (0x1 << (i%8));
+      bit_idx++;
+    }
+    wsect(start + block_idx, buf);
+    block_idx++;
   }
-  printf("balloc: write bitmap block at sector %d\n", sb.bmapstart);
-  wsect(sb.bmapstart, buf);
 }
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
