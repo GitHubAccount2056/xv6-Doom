@@ -18,12 +18,7 @@
 //	See tables.c, too.
 //
 
-
-
-
-
 #include "doomgeneric.h"
-#include <math.h>
 
 
 #include "doomdef.h"

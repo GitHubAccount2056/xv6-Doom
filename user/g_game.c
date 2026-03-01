@@ -18,7 +18,6 @@
 
 
 #include "doomgeneric.h"
-#include <math.h>
 
 #include "doomdef.h" 
 #include "doomkeys.h"

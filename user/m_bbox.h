@@ -20,7 +20,13 @@
 #ifndef __M_BBOX__
 #define __M_BBOX__
 
-#include <limits.h>
+#ifndef INT_MAX
+#define INT_MAX 2147483647
+#endif
+
+#ifndef INT_MIN
+#define INT_MIN (-INT_MAX - 1)
+#endif
 
 #include "m_fixed.h"
 

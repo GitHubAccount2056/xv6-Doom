@@ -20,7 +20,6 @@
 //
 
 #include "doomgeneric.h"
-#include <math.h>
 
 #include "i_system.h"
 

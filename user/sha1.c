@@ -30,7 +30,6 @@
  */
 
 #include "doomgeneric.h"
-#include <assert.h>
 
 #include "i_swap.h"
 #include "sha1.h"

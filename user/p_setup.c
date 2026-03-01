@@ -18,9 +18,6 @@
 //
 
 
-
-#include <math.h>
-
 #include "doomgeneric.h"
 
 #include "z_zone.h"
